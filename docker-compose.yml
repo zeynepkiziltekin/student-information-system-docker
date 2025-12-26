@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: cpp_app
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_NAME=testdb
+      - DB_USER=user
+      - DB_PASSWORD=password
+
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      POSTGRES_DB: testdb
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
