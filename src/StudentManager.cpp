@@ -1,61 +1,68 @@
-#include "Student.hpp"
+#include "StudentManager.hpp"
+#include "Logger.hpp"
 #include <iostream>
 
 StudentManager::StudentManager(Database& db) : db(db) {}
 
 void StudentManager::addStudent(const Student& student) {
-    try {
-        pqxx::work w(*db.getConnection());
-        w.exec_params(
-            "INSERT INTO students (name, surname, department, email) VALUES ($1, $2, $3, $4)",
-            student.name, student.surname, student.department, student.email
-        );
-        w.commit();
-        std::cout << "Added: " << student.name << std::endl;
-    } catch (const std::exception &e) {
-        std::cerr << "Add error: " << e.what() << std::endl;
+    std::string sql = "INSERT INTO students (name, surname, department, email) VALUES ('" + 
+                      student.name + "', '" + student.surname + "', '" + 
+                      student.department + "', '" + student.email + "')";
+    
+    PGresult* res = PQexec(db.getConnection(), sql.c_str());
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        std::string error = "Add Student Failed: " + std::string(PQresultErrorMessage(res));
+        Logger::getInstance().log(LogLevel::ERROR, error);
+    } else {
+        Logger::getInstance().log(LogLevel::INFO, "Student added to DB successfully: " + student.email);
     }
+    
+    PQclear(res);
+}
+
+void StudentManager::deleteStudent(int id) {
+    std::string sql = "DELETE FROM students WHERE id = " + std::to_string(id);
+    PGresult* res = PQexec(db.getConnection(), sql.c_str());
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        std::string error = "Delete Student Failed: " + std::string(PQresultErrorMessage(res));
+        Logger::getInstance().log(LogLevel::ERROR, error);
+    } else {
+        // Etkilenen satir sayisini kontrol et (Hicbir sey silinmemis olabilir)
+        std::string rowsAffected = PQcmdTuples(res);
+        if (rowsAffected == "0") {
+             Logger::getInstance().log(LogLevel::WARNING, "Delete operation tried but no student found with ID: " + std::to_string(id));
+        } else {
+             Logger::getInstance().log(LogLevel::INFO, "Student deleted from DB. ID: " + std::to_string(id));
+        }
+    }
+
+    PQclear(res);
 }
 
 std::vector<Student> StudentManager::getAllStudents() {
     std::vector<Student> students;
-    try {
-        pqxx::work w(*db.getConnection());
-        pqxx::result r = w.exec("SELECT id, name, surname, department, email FROM students");
-        for (auto row : r) {
-            students.push_back({
-                row[0].as<int>(), row[1].as<std::string>(), row[2].as<std::string>(),
-                row[3].as<std::string>(), row[4].as<std::string>()
-            });
-        }
-    } catch (const std::exception &e) {
-        std::cerr << "List error: " << e.what() << std::endl;
+    PGresult* res = PQexec(db.getConnection(), "SELECT id, name, surname, department, email FROM students");
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        std::string error = "List Students Failed: " + std::string(PQresultErrorMessage(res));
+        Logger::getInstance().log(LogLevel::ERROR, error);
+        PQclear(res);
+        return students;
     }
+
+    int rows = PQntuples(res);
+    for (int i = 0; i < rows; i++) {
+        Student s;
+        s.id = std::stoi(PQgetvalue(res, i, 0));
+        s.name = PQgetvalue(res, i, 1);
+        s.surname = PQgetvalue(res, i, 2);
+        s.department = PQgetvalue(res, i, 3);
+        s.email = PQgetvalue(res, i, 4);
+        students.push_back(s);
+    }
+
+    PQclear(res);
     return students;
-}
-
-void StudentManager::updateStudentEmail(int id, const std::string& newEmail) {
-    try {
-        pqxx::work w(*db.getConnection());
-        w.exec_params("UPDATE students SET email = $1 WHERE id = $2", newEmail, id);
-        w.commit();
-        std::cout << "Updated student " << id << std::endl;
-    } catch (const std::exception &e) {
-        std::cerr << "Update error: " << e.what() << std::endl;
-    }
-}
-
-void StudentManager::deleteStudent(int id) {
-    try {
-        pqxx::work w(*db.getConnection());
-        w.exec_params("DELETE FROM students WHERE id = $1", id);
-        w.commit();
-        std::cout << "Deleted student " << id << std::endl;
-    } catch (const std::exception &e) {
-        std::cerr << "Delete error: " << e.what() << std::endl;
-    }
-}
-
-std::optional<Student> StudentManager::getStudentById(int id) {
-    return std::nullopt; // Simdilik bos
 }
