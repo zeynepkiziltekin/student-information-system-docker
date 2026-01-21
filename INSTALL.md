@@ -9,4 +9,10 @@ This document describes how to install and run the Student Information System pr
 - C++ compiler (g++)
 
 ## Installation Steps
-Installation steps will be added in later stages of the project.
+
+Follow the steps below to install and run the project using Docker.
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/zeynepkiziltekin/student-information-system-docker.git
+cd student-information-system-docker
